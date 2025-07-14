@@ -93,7 +93,7 @@
             if (!retry) chatHistory.push({ role: 'user', text: message, time: new Date().toISOString() });
             setStatus('⏳ Đang gửi yêu cầu...');
             try {
-                const res = await fetch('http://localhost:3000/chat', {
+                const res = await fetch('https://my-site-vdhd.onrender.com', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

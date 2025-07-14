@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Chat bot</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="main-layout">
+        <div id="sidebar">
+            <h3>Tuỳ chọn nhanh</h3>
+            <button class="option-btn" onclick="quickAsk('Giới thiệu về bạn')">Giới thiệu về bạn</button>
+            <button class="option-btn" onclick="quickAsk('Hôm nay có tin tức gì hot?')">Tin tức hôm nay</button>
+            <button class="option-btn" onclick="quickAsk('Kể một câu chuyện vui')">Kể chuyện vui</button>
+            <button class="option-btn" onclick="quickAsk('Gợi ý món ăn tối nay')">Gợi ý món ăn</button>
+            <button class="option-btn" onclick="quickAsk('Tư vấn học lập trình')">Tư vấn lập trình</button>
+        </div>
+        <div id="chat-container">
+            <h2>Bố Tuấn test AI</h2>
+            <div id="top-tools">
+                <button id="reset-btn">Xoá hội thoại</button>
+                <button id="retry-btn">Gửi lại</button>
+                <button id="download-btn">Tải lịch sử</button>
+                <button id="dark-btn">🌙/☀️</button>
+                <select id="model-select">
+                    <option value="gemini-2.0-flash">Gemini Flash</option>
+                    <option value="gemini-pro">Gemini Pro</option>
+                </select>
+            </div>
+            <div id="status-bar"></div>
+            <input type="text" id="search-input" placeholder="Tìm kiếm hội thoại...">
+            <div id="chat-box"></div>
+            <div id="input-area">
+                <input type="text" id="user-input" placeholder="Nhập tin nhắn..." autocomplete="off">
+                <button id="mic-btn" title="Nhập bằng giọng nói">🎤</button>
+                <button id="send-btn">Gửi</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        const chatBox = document.getElementById('chat-box');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const downloadBtn = document.getElementById('download-btn');
+        const retryBtn = document.getElementById('retry-btn');
+        const darkBtn = document.getElementById('dark-btn');
+        const modelSelect = document.getElementById('model-select');
+        const statusBar = document.getElementById('status-bar');
+        const searchInput = document.getElementById('search-input');
+        const micBtn = document.getElementById('mic-btn');
+
+        let chatHistory = [];
+        let lastUserMsg = '';
+
+        // Lưu và tải lịch sử chat từ LocalStorage
+        function saveHistory() {
+            localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+        }
+        function loadHistory() {
+            const data = localStorage.getItem('chatHistory');
+            if (data) {
+                chatHistory = JSON.parse(data);
+                chatBox.innerHTML = '';
+                chatHistory.forEach(item => appendMessage(item.role === 'user' ? 'user' : 'bot', item.text, item.time, true));
+            }
+        }
+        window.addEventListener('load', loadHistory);
+
+        function formatTime(date) {
+            return new Date(date).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function appendMessage(sender, text, time = null, skipSave = false) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message ' + sender;
+            msgDiv.textContent = (sender === 'user' ? 'Bạn: ' : 'Bot: ') + text;
+            if (!time) time = new Date();
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'timestamp';
+            timeSpan.textContent = formatTime(time);
+            msgDiv.appendChild(timeSpan);
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            if (!skipSave) saveHistory();
+        }
+
+        function setStatus(text) {
+            statusBar.textContent = text;
+        }
+
+        async function botReplyGemini(message, retry = false) {
+            if (!retry) chatHistory.push({ role: 'user', text: message, time: new Date().toISOString() });
+            setStatus('⏳ Đang gửi yêu cầu...');
+            try {
+                const res = await fetch('http://localhost:3000/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        history: chatHistory,
+                        model: modelSelect.value
+                    })
+                });
+                const data = await res.json();
+                chatHistory.push({ role: 'bot', text: data.reply, time: new Date().toISOString() });
+                setStatus('✅ Đã nhận phản hồi');
+                saveHistory();
+                return data.reply;
+            } catch (e) {
+                setStatus('❌ Lỗi kết nối tới server!');
+                return 'Lỗi kết nối tới server!';
+            }
+        }
+
+        sendBtn.onclick = async () => {
+            const msg = userInput.value.trim();
+            if (!msg) return;
+            lastUserMsg = msg;
+            appendMessage('user', msg);
+            appendMessage('bot', 'Đang trả lời...');
+            userInput.value = '';
+            userInput.focus();
+            const botMsg = await botReplyGemini(msg);
+            chatBox.lastChild.remove();
+            appendMessage('bot', botMsg);
+        };
+
+        userInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') sendBtn.click();
+        });
+
+        function quickAsk(text) {
+            userInput.value = text;
+            sendBtn.click();
+        }
+
+        resetBtn.onclick = () => {
+            chatHistory = [];
+            chatBox.innerHTML = '';
+            saveHistory();
+        };
+
+        retryBtn.onclick = async () => {
+            if (!lastUserMsg) return;
+            // Xoá 2 tin cuối (user, bot) khỏi lịch sử và khung chat
+            if (chatHistory.length >= 2) chatHistory.splice(-2, 2);
+            if (chatBox.childNodes.length >= 2) {
+                chatBox.removeChild(chatBox.lastChild);
+                chatBox.removeChild(chatBox.lastChild);
+            }
+            appendMessage('user', lastUserMsg);
+            appendMessage('bot', 'Đang trả lời...');
+            const botMsg = await botReplyGemini(lastUserMsg, true);
+            chatBox.lastChild.remove();
+            appendMessage('bot', botMsg);
+        };
+
+        downloadBtn.onclick = () => {
+            let text = '';
+            chatHistory.forEach(item => {
+                const who = item.role === 'user' ? 'Bạn' : 'Bot';
+                text += `[${who}] ${item.text}\n`;
+            });
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'lich_su_chat.txt';
+            a.click();
+            URL.revokeObjectURL(url);
+        };
+
+        darkBtn.onclick = () => {
+            document.body.classList.toggle('dark');
+        };
+
+        // Tìm kiếm trong lịch sử chat
+        searchInput.oninput = function() {
+            const q = this.value.trim().toLowerCase();
+            chatBox.innerHTML = '';
+            chatHistory.forEach(item => {
+                if (item.text.toLowerCase().includes(q)) {
+                    appendMessage(item.role === 'user' ? 'user' : 'bot', item.text, item.time, true);
+                }
+            });
+            if (!q) loadHistory();
+        };
+
+        // Gửi tin nhắn bằng giọng nói (Speech-to-Text)
+        if ('webkitSpeechRecognition' in window) {
+            const recognition = new webkitSpeechRecognition();
+            recognition.lang = 'vi-VN';
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            micBtn.onclick = () => {
+                recognition.start();
+                setStatus('🎤 Đang nghe...');
+            };
+            recognition.onresult = function(event) {
+                const transcript = event.results[0][0].transcript;
+                userInput.value = transcript;
+                setStatus('✅ Đã nhận giọng nói');
+            };
+            recognition.onerror = function() {
+                setStatus('❌ Không nhận được giọng nói');
+            };
+        } else {
+            micBtn.style.display = 'none';
+        }
+
+        // Desktop notification khi có tin nhắn mới (nếu cửa sổ bị ẩn)
+        if ('Notification' in window) {
+            Notification.requestPermission();
+        }
+        function notifyNewBotMsg(msg) {
+            if (document.hidden && Notification.permission === 'granted') {
+                new Notification('Bot trả lời', { body: msg });
+            }
+        }
+        // Gọi notifyNewBotMsg trong appendMessage cho bot
+        const oldAppendMessage = appendMessage;
+        appendMessage = function(sender, text, time = null, skipSave = false) {
+            oldAppendMessage(sender, text, time, skipSave);
+            if (sender === 'bot') notifyNewBotMsg(text);
+        };
+    </script>
+</body>
+</html>

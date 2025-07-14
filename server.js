@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const fetch = require('node-fetch');
 const cors = require('cors');
@@ -5,12 +6,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const API_KEY = 'AIzaSyAdibuOZzpdDpLPXRzB8t46RQlGYhKVgUs'; // Thay bằng API key thật của bạn
+const API_KEY = process.env.GEMINI_API_KEY;
 
 app.post('/chat', async (req, res) => {
     const history = req.body.history || [];
     const model = req.body.model || 'gemini-2.0-flash';
-    // Chuyển đổi history thành định dạng Gemini
+    
     const contents = history.map(item => ({
         role: item.role === 'user' ? 'user' : 'model',
         parts: [{ text: item.text }]
@@ -34,3 +35,4 @@ app.post('/chat', async (req, res) => {
 });
 
 app.listen(3000, () => console.log('Server chạy ở http://localhost:3000'));
+

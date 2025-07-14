@@ -9,3 +9,5 @@ dist/
 build/
 # Ignore logs
 logs/
+
+GEMINI_API_KEY=AIzaSyAdibuOZzpdDpLPXRzB8t46RQlGYhKVgUs
